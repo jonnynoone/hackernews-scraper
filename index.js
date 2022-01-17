@@ -1,13 +1,18 @@
 const fs = require('fs');
 const request = require('request-promise');
 const cheerio = require('cheerio');
+const mongoose = require('mongoose');
 const objectsToCSV = require('objects-to-csv');
+const HackerPost = require('./HackerPost.js');
 
 const BASE_URL = 'https://news.ycombinator.com/';
 const PAGE_URL = 'https://news.ycombinator.com/news?p=';
 
 (async () => {
-    let posts = await getPosts();
+    // Connect to MongoDB
+    await connectToMongo();
+
+    let posts = await getPosts(3);
     console.log(posts);
 
     // Save scraped data to JSON
@@ -18,10 +23,16 @@ const PAGE_URL = 'https://news.ycombinator.com/news?p=';
     await csv.toDisk('./output.csv', { bom: true });
 })();
 
-async function getPosts() {
+async function connectToMongo() {
+    const connect = await mongoose.connect('mongodb+srv://hackernews:b4ssl1n3@cluster0.zmd8d.mongodb.net/hnPosts?retryWrites=true&w=majority');
+    console.log('Connected to Mongo...');
+    return connect;
+}
+
+async function getPosts(pageNum) {
     try {
         const html = await request({
-            uri: PAGE_URL + 1,
+            uri: PAGE_URL + pageNum,
             headers: {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/97.0.4692.71 Safari/537.36'
             }
@@ -46,6 +57,8 @@ async function getPosts() {
                 comments = comments === 'discuss' ? 0 : comments;
     
                 results.push({ id, extLink, title, source, score, postedBy, userProfile, datePosted, timePosted, comments });
+                const hpost = new HackerPost({ id, extLink, title, source, score, postedBy, userProfile, datePosted, timePosted, comments });
+                hpost.save();
             }
         });
         return results;
